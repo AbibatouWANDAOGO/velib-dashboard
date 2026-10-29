@@ -43,6 +43,22 @@ def fetch_data_from_api(url: str, timeout: int = 10) -> Optional[dict]:
         return None
 
 
+def count_bike_type(types: object, bike_type: str) -> int:
+    """
+    Count the bikes of one type in the API's num_bikes_available_types field.
+
+    Args:
+        types: List of single-key dicts, e.g. [{"mechanical": 4}, {"ebike": 2}]
+        bike_type: Key to sum ("mechanical" or "ebike")
+
+    Returns:
+        Number of bikes of that type (0 if the field is missing)
+    """
+    if not isinstance(types, list):
+        return 0
+    return sum(int(t.get(bike_type, 0)) for t in types if isinstance(t, dict))
+
+
 def load_station_information(use_local: bool = True) -> pd.DataFrame:
     """
     Load station information data.
@@ -97,6 +113,12 @@ def load_station_status(use_local: bool = True) -> pd.DataFrame:
         data = fetch_data_from_api(STATION_STATUS_URL)
         if data and 'data' in data and 'stations' in data['data']:
             df = pd.DataFrame(data['data']['stations'])
+            # The API nests bike types as [{"mechanical": n}, {"ebike": m}]:
+            # flatten them into the same columns as the local CSV export
+            if 'num_bikes_available_types' in df.columns:
+                types = df.pop('num_bikes_available_types')
+                df['num_bikes_available_types/0/mechanical'] = types.map(lambda t: count_bike_type(t, 'mechanical'))
+                df['num_bikes_available_types/1/ebike'] = types.map(lambda t: count_bike_type(t, 'ebike'))
             logger.info(f"Fetched status for {len(df)} stations from API")
             return df
         else:

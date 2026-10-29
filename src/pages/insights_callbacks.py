@@ -5,13 +5,17 @@ This file should be imported and registered in main.py
 
 import pandas as pd
 from dash import Dash, Input, Output
-from typing import Any, cast
+from typing import Any, Callable, cast
 
 
-def register_insights_callbacks(app: Dash, df_maintenance: pd.DataFrame) -> None:
+def register_insights_callbacks(app: Dash, get_data: Callable[[], pd.DataFrame]) -> None:
     """
     Register callbacks for the maintenance insights page.
     Call this function after creating the Dash app in main.py
+
+    Args:
+        app: Dash application
+        get_data: Returns the current station data (refreshed by the "Actualiser" button)
     """
     
     @app.callback(
@@ -29,7 +33,7 @@ def register_insights_callbacks(app: Dash, df_maintenance: pd.DataFrame) -> None
         from src.utils.common_functions import filter_operational_stations
         
         # Re-create the filtered dataframe
-        df_operational = filter_operational_stations(df_maintenance)
+        df_operational = filter_operational_stations(get_data())
         df_issues = detect_maintenance_issues(df_operational)
         df_issues = df_issues[df_issues['severity'].notna()].copy()
         

@@ -147,7 +147,7 @@ def create_maintenance_map(df: pd.DataFrame) -> dcc.Graph:
         fig = go.Figure(
             data=[],
             layout=go.Layout(
-                mapbox=dict(style='open-street-map', center=dict(lat=48.8566, lon=2.3522), zoom=11),
+                map=dict(style='open-street-map', center=dict(lat=48.8566, lon=2.3522), zoom=11),
                 title='<b>Aucun problème détecté ! 🎉</b>', height=500, margin=dict(l=0, r=0, b=0, t=40), font=dict(family='Inter')
             )
         )
@@ -167,14 +167,14 @@ def create_maintenance_map(df: pd.DataFrame) -> dcc.Graph:
     for severity in ['CRITIQUE', 'URGENT']:
         df_severity = df_issues[df_issues['severity'] == severity]
         if len(df_severity) > 0:
-            fig.add_trace(go.Scattermapbox(
+            fig.add_trace(go.Scattermap(
                 lat=df_severity['lat'], lon=df_severity['lon'], mode='markers',
                 marker=dict(size=df_severity['size'], color=severity_colors[severity], opacity=0.8),
                 text=df_severity['hover_text'], hovertemplate='%{text}<extra></extra>', name=severity
             ))
     
     fig.update_layout(
-        mapbox=dict(style='open-street-map', center=dict(lat=48.8566, lon=2.3522), zoom=11),
+        map=dict(style='open-street-map', center=dict(lat=48.8566, lon=2.3522), zoom=11),
         height=500, margin=dict(l=0, r=0, b=0, t=40), hovermode='closest',
         title='<b>Carte de Maintenance - Stations à Intervenir</b>', font=dict(family='Inter'), title_x=0.5
     )

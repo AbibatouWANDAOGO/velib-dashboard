@@ -30,6 +30,7 @@ DEBUG_MODE = False  # Set to False for production
 
 # Database configuration
 USE_DATABASE = True  # Use SQLite database for data storage
+USE_LIVE_DATA = True  # Fetch real-time data from the Vélib' API at startup (falls back to local data if offline)
 DATABASE_FILE = DATA_DIR / "velib_data.db"
 
 # Cache configuration

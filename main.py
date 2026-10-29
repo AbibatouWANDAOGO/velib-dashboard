@@ -55,8 +55,10 @@ from config import (
     DASHBOARD_PORT,
     DEBUG_MODE,
     CLEANED_DATA_FILE,
-    USE_DATABASE
+    USE_DATABASE,
+    USE_LIVE_DATA
 )
+from datetime import datetime
 from src.utils.get_data import get_all_data
 from src.utils.clean_data import process_and_save_data
 from src.utils.database import (
@@ -92,8 +94,18 @@ def load_and_prepare_data():
         Processed DataFrame
     """
     logger.info("Loading data...")
-    
+
     try:
+        # Try real-time data from the Vélib' API first
+        if USE_LIVE_DATA:
+            try:
+                info_df, status_df = get_all_data(use_local=False)
+                df = process_and_save_data(info_df, status_df)
+                logger.info(f"Loaded {len(df)} stations from the Vélib' API (real time)")
+                return df
+            except Exception as e:
+                logger.warning(f"Vélib' API unavailable ({e}), falling back to local data")
+
         # Try to use database first if enabled
         if USE_DATABASE and database_exists():
             logger.info("Loading data from SQLite database...")
@@ -134,6 +146,24 @@ def load_and_prepare_data():
         raise
 
 
+def describe_data_freshness(df) -> str:
+    """
+    Describe when the displayed data was last reported by the stations.
+
+    Args:
+        df: Station DataFrame with a last_reported column (Unix timestamp)
+
+    Returns:
+        Human-readable French sentence
+    """
+    if 'last_reported' not in df.columns or df['last_reported'].isna().all():
+        return "Date des données inconnue"
+    last = datetime.fromtimestamp(int(df['last_reported'].max()))
+    age_minutes = (datetime.now() - last).total_seconds() / 60
+    label = "en temps réel" if age_minutes < 60 else "archivées"
+    return f"Données {label} du {last:%d/%m/%Y à %H:%M}"
+
+
 def create_app():
     """
     Create and configure the Dash application.
@@ -149,34 +179,63 @@ def create_app():
         title="Vélib' Dashboard"
     )
     
-    # Load data
-    df = load_and_prepare_data()
-    
+    # Load data (kept in a mutable holder so the "Actualiser" button can replace it)
+    state = {'df': load_and_prepare_data()}
+
     # Define the app layout
     app.layout = html.Div([
         dcc.Location(id='url', refresh=False),
+        dcc.Store(id='data-version', data=0),
         create_navbar(),
         dbc.Container([
-            html.Div(id='page-content'),
+            # Data freshness bar
+            html.Div([
+                html.Span(id='data-freshness', children=describe_data_freshness(state['df']),
+                          className="text-muted me-3"),
+                dbc.Button("⟳ Actualiser", id='refresh-data', size="sm", color="primary", outline=True),
+            ], className="d-flex justify-content-end align-items-center mb-2"),
+            dcc.Loading(html.Div(id='page-content'), type="circle"),
             create_footer()
         ], fluid=True, style={'minHeight': '80vh'})
     ])
-    
+
+    @app.callback(
+        [Output('data-version', 'data'),
+         Output('data-freshness', 'children')],
+        Input('refresh-data', 'n_clicks'),
+        prevent_initial_call=True
+    )
+    def refresh_data(n_clicks):
+        """
+        Reload the latest data from the Vélib' API and redraw the current page.
+
+        Args:
+            n_clicks: Number of clicks on the refresh button
+
+        Returns:
+            New data version and freshness text
+        """
+        state['df'] = load_and_prepare_data()
+        return n_clicks, describe_data_freshness(state['df'])
+
     # Callback for page navigation
     @app.callback(
         Output('page-content', 'children'),
-        Input('url', 'pathname')
+        [Input('url', 'pathname'),
+         Input('data-version', 'data')]
     )
-    def display_page(pathname):
+    def display_page(pathname, _data_version):
         """
         Display the appropriate page based on URL pathname.
-        
+
         Args:
             pathname: URL pathname
-            
+            _data_version: Changes when data is refreshed, to redraw the page
+
         Returns:
             Page layout
         """
+        df = state['df']
         if pathname == '/analysis':
             return create_analysis_layout(df)
         elif pathname == '/map':
@@ -189,7 +248,7 @@ def create_app():
             return create_home_layout(df)
     
     # Register insights page callbacks for filter functionality
-    register_insights_callbacks(app, df)
+    register_insights_callbacks(app, lambda: state['df'])
     
     return app
 
