@@ -108,7 +108,7 @@ def create_map_layout(df: pd.DataFrame) -> html.Div:
                         dcc.Input(
                             id='map-station-search',
                             type='search',
-                            placeholder="Ex. Châtelet, Opéra… puis Entrée",
+                            placeholder="Nom de station + Entrée",
                             debounce=True,
                             className="form-control"
                         ),
